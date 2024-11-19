@@ -1,0 +1,274 @@
+<!-- 
+  Copyright © [2023] [Dustin_Chen]. All rights reserved.
+  Author: Dustin_Chen 
+  Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>parse_cu_excel</title>
+    <style>
+        body {
+            line-height: 1.2;
+            font-size: 14px;
+            font-family: Roboto, sans-serif;
+            white-space: nowrap;
+            overflow-x: auto;
+        }
+
+        .gnb-stats {
+            color: black;
+            font-size: 12px;
+        }
+
+        .udp-dl-tx {
+            color: blue;
+            font-size: 12px;
+        }
+
+        .udp-ul-tx {
+            color: red;
+            font-size: 12px;
+        }
+
+        table {
+            width: 40%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        /* Styles for file input and filename display */
+        #fileNameDisplay {
+            display: inline-block;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 14px;
+            color: #333;
+            padding-left: 10px;
+        }
+
+        #fileInput {
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.3/xlsx.full.min.js"></script>
+    <script>
+        let allTimestamps = [];
+        let allUdpUlTxValues = [];
+        let allUdpDlTxValues = [];
+        let originalFileName = '';
+
+        // Function to handle file upload and parse the content
+        function handleFileUploadAndParse(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                alert("No file selected!");
+                return;
+            }
+
+            const reader = new FileReader();
+
+            // Display the filename in the fileNameDisplay span
+            document.getElementById("fileNameDisplay").textContent = file.name;
+
+            // Store original file name
+            originalFileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+
+            // When the file is read, parse its content
+            reader.onload = function(e) {
+                const content = e.target.result;
+                parseContentAndUpdate(content);
+            };
+
+            // Read the file as text
+            reader.readAsText(file);
+        }
+
+        // Function to parse the file content and generate Excel
+        function parseContentAndUpdate(inputText) {
+            const lines = inputText.split("\n");
+            const timestamps = [];
+            const udpUlTxValues = [];
+            const udpDlTxValues = [];
+
+            // Parse the input text for relevant data
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (line.includes("GNB MGR STATISTICS")) {
+                    const timestamp = line.match(/\[(.*?)\]/)[1];  // Extract the timestamp
+                    timestamps.push(timestamp);
+                } else if (line.includes("UDP-UL-Tx")) {
+                    const udpUlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
+                    if (udpUlTxValue) {
+                        udpUlTxValues.push(parseFloat(udpUlTxValue[1]));
+                    }
+                } else if (line.includes("UDP-DL-Tx")) {
+                    const udpDlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
+                    if (udpDlTxValue) {
+                        udpDlTxValues.push(parseFloat(udpDlTxValue[1]));
+                    }
+                }
+            }
+
+            // Store the data globally for later use
+            allTimestamps = timestamps;
+            allUdpUlTxValues = udpUlTxValues;
+            allUdpDlTxValues = udpDlTxValues;
+
+            // Update the table with all data (no filters)
+            updateTable(timestamps, udpUlTxValues, udpDlTxValues);
+        }
+
+        // Function to update the data table
+        function updateTable(timestamps, udpUlTxValues, udpDlTxValues) {
+            const table = document.getElementById("dataTable");
+            // Clear previous table rows
+            table.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th><th>DL Throughput (Mbps)</th></tr>";
+            
+            for (let i = 0; i < timestamps.length; i++) {
+                const row = table.insertRow();
+                const cell1 = row.insertCell(0);
+                const cell2 = row.insertCell(1);
+                const cell3 = row.insertCell(2);
+                cell1.textContent = timestamps[i];
+                cell2.textContent = udpUlTxValues[i] || '-';
+                cell3.textContent = udpDlTxValues[i] || '-';
+            }
+        }
+
+        // Function to apply UL and DL filters separately
+        function applyFilters(filterType) {
+            const ulFilter = parseFloat(document.getElementById("ulFilter").value) || 0;
+            const dlFilter = parseFloat(document.getElementById("dlFilter").value) || 0;
+
+            const filteredTimestamps = [];
+            const filteredUdpUlTxValues = [];
+            const filteredUdpDlTxValues = [];
+
+            if (filterType === 'ul') {
+                // Apply UL filter
+                for (let i = 0; i < allTimestamps.length; i++) {
+                    if (allUdpUlTxValues[i] > ulFilter) {
+                        filteredTimestamps.push(allTimestamps[i]);
+                        filteredUdpUlTxValues.push(allUdpUlTxValues[i]);
+                        filteredUdpDlTxValues.push(allUdpDlTxValues[i]);
+                    }
+                }
+            } else if (filterType === 'dl') {
+                // Apply DL filter
+                for (let i = 0; i < allTimestamps.length; i++) {
+                    if (allUdpDlTxValues[i] > dlFilter) {
+                        filteredTimestamps.push(allTimestamps[i]);
+                        filteredUdpUlTxValues.push(allUdpUlTxValues[i]);
+                        filteredUdpDlTxValues.push(allUdpDlTxValues[i]);
+                    }
+                }
+            }
+
+            // Update the table with filtered data
+            updateTable(filteredTimestamps, filteredUdpUlTxValues, filteredUdpDlTxValues);
+            
+            // Export filtered data to Excel
+            exportToExcel(filteredTimestamps, filteredUdpUlTxValues, filteredUdpDlTxValues, ulFilter, dlFilter, filterType);
+        }
+
+        // Function to export filtered data to Excel
+        function exportToExcel(timestamps, udpUlTxValues, udpDlTxValues, ulFilter, dlFilter, filterType) {
+            // Prepare data for UL export
+            const ulData = [["Time", "UL Throughput (Mbps)"]];
+            for (let i = 0; i < timestamps.length; i++) {
+                if (udpUlTxValues[i] > ulFilter) {
+                    ulData.push([timestamps[i], udpUlTxValues[i]]);
+                }
+            }
+
+            // Prepare data for DL export
+            const dlData = [["Time", "DL Throughput (Mbps)"]];
+            for (let i = 0; i < timestamps.length; i++) {
+                if (udpDlTxValues[i] > dlFilter) {
+                    dlData.push([timestamps[i], udpDlTxValues[i]]);
+                }
+            }
+
+            // Create worksheets
+            const ulWs = XLSX.utils.aoa_to_sheet(ulData);
+            const dlWs = XLSX.utils.aoa_to_sheet(dlData);
+
+            // Create a workbook and append sheets
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ulWs, "UL Throughput");
+            XLSX.utils.book_append_sheet(wb, dlWs, "DL Throughput");
+
+            // Generate Excel file with dynamic filename
+            let fileName = originalFileName;
+            if (filterType === 'ul') {
+                fileName += `_UL_${ulFilter}.xlsx`;
+            } else if (filterType === 'dl') {
+                fileName += `_DL_${dlFilter}.xlsx`;
+            }
+
+            XLSX.writeFile(wb, fileName);
+        }
+
+        // Function to trigger the file input click event
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+    </script>
+</head>
+
+<body>
+    <h2>parse_cu_excel</h2>
+
+    <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com">chuhpsdustin@gmail.com</a></p>
+
+    <div>
+        <br>
+        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" file:</label><br>
+        <!-- Hidden file input -->
+        <input type="file" id="fileInput" accept=".txt" onchange="handleFileUploadAndParse(event)">
+        
+        <!-- Custom button to trigger file selection -->
+        <button onclick="triggerFileInput()">Select File & Parse</button>
+        
+        <br>
+        <span id="fileNameDisplay">No file selected</span> <!-- Display filename here -->
+    </div>
+
+    <div>
+        <label for="ulFilter">UL Throughput Threshold (Mbps): </label>
+        <input type="number" id="ulFilter" placeholder="Enter UL filter value" min="0">
+        <button onclick="applyFilters('ul')">Apply UL Filter</button>
+    </div>
+    <div>
+        <label for="dlFilter">DL Throughput Threshold (Mbps): </label>
+        <input type="number" id="dlFilter" placeholder="Enter DL filter value" min="0">
+        <button onclick="applyFilters('dl')">Apply DL Filter</button>
+    </div>
+
+    <h4>Output Data Table:</h4>
+    <table id="dataTable"></table>
+</body>
+
+</html>
