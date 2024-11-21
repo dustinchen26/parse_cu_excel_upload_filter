@@ -36,9 +36,10 @@
         }
 
         table {
-            width: 40%;
+            width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
+            flex: 1;
         }
 
         table, th, td {
@@ -70,45 +71,88 @@
             margin-top: 10px;
             display: none;
         }
+
+        /* Container for side-by-side tables */
+        .table-container {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .table-wrapper {
+            width: 48%; /* Each table takes up almost half of the container */
+        }
+
+        /* For UL and DL table filters */
+        .filter-container {
+            margin-top: 10px;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.3/xlsx.full.min.js"></script>
     <script>
-        let allTimestamps = [];
+        let allTimestampsUL = [];
         let allUdpUlTxValues = [];
+        let allTimestampsDL = [];
         let allUdpDlTxValues = [];
-        let originalFileName = '';
 
-        // Function to handle file upload and parse the content
         function handleFileUploadAndParse(event) {
-            const file = event.target.files[0];
-            if (!file) {
-                alert("No file selected!");
+            const files = event.target.files;
+            if (files.length === 0) {
+                alert("No files selected!");
                 return;
             }
 
-            const reader = new FileReader();
+            // Reset data before processing new files
+            allTimestampsUL = [];
+            allUdpUlTxValues = [];
+            allTimestampsDL = [];
+            allUdpDlTxValues = [];
 
-            // Display the filename in the fileNameDisplay span
-            document.getElementById("fileNameDisplay").textContent = file.name;
+            const fileArray = Array.from(files);
 
-            // Store original file name
-            originalFileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+            // Sort files by name in ascending order
+            fileArray.sort((a, b) => a.name.localeCompare(b.name));
 
-            // When the file is read, parse its content
-            reader.onload = function(e) {
-                const content = e.target.result;
-                parseContentAndUpdate(content);
-            };
+            // Display the number of selected files
+            document.getElementById("fileNameDisplay").textContent = "Files: " + files.length + " file(s) selected";
 
-            // Read the file as text
-            reader.readAsText(file);
+            // Clear the data tables before processing new files
+            const ulTable = document.getElementById("dataTableUL");
+            ulTable.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th></tr>";
+            const dlTable = document.getElementById("dataTableDL");
+            dlTable.innerHTML = "<tr><th>Time</th><th>DL Throughput (Mbps)</th></tr>";
+
+            // Read and parse each file
+            Promise.all(fileArray.map(file => readFile(file)))
+                .then(fileContents => {
+                    fileContents.forEach(content => {
+                        parseContentAndUpdate(content);
+                    });
+
+                    // After all files are processed, update the tables
+                    updateTableUL(allTimestampsUL, allUdpUlTxValues);
+                    updateTableDL(allTimestampsDL, allUdpDlTxValues);
+                })
+                .catch(error => alert("Error reading files: " + error));
         }
 
-        // Function to parse the file content and generate Excel
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    resolve(e.target.result);
+                };
+                reader.onerror = function() {
+                    reject("Failed to read file: " + file.name);
+                };
+                reader.readAsText(file);
+            });
+        }
+
         function parseContentAndUpdate(inputText) {
             const lines = inputText.split("\n");
-            const timestamps = [];
+            const timestampsUL = [];
             const udpUlTxValues = [];
+            const timestampsDL = [];
             const udpDlTxValues = [];
 
             // Parse the input text for relevant data
@@ -117,7 +161,8 @@
 
                 if (line.includes("GNB MGR STATISTICS")) {
                     const timestamp = line.match(/\[(.*?)\]/)[1];  // Extract the timestamp
-                    timestamps.push(timestamp);
+                    timestampsUL.push(timestamp);
+                    timestampsDL.push(timestamp);
                 } else if (line.includes("UDP-UL-Tx")) {
                     const udpUlTxValue = line.match(/\(.*?(\d+(\.\d+)?)\s*Mbps\)/); // Extract the Mbps value
                     if (udpUlTxValue) {
@@ -131,107 +176,62 @@
                 }
             }
 
-            // Store the data globally for later use
-            allTimestamps = timestamps;
-            allUdpUlTxValues = udpUlTxValues;
-            allUdpDlTxValues = udpDlTxValues;
-
-            // Update the table with all data (no filters)
-            updateTable(timestamps, udpUlTxValues, udpDlTxValues);
+            allTimestampsUL = allTimestampsUL.concat(timestampsUL);
+            allUdpUlTxValues = allUdpUlTxValues.concat(udpUlTxValues);
+            allTimestampsDL = allTimestampsDL.concat(timestampsDL);
+            allUdpDlTxValues = allUdpDlTxValues.concat(udpDlTxValues);
         }
 
-        // Function to update the data table
-        function updateTable(timestamps, udpUlTxValues, udpDlTxValues) {
-            const table = document.getElementById("dataTable");
-            // Clear previous table rows
-            table.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th><th>DL Throughput (Mbps)</th></tr>";
-            
+        function updateTableUL(timestamps, udpUlTxValues) {
+            const table = document.getElementById("dataTableUL");
+            table.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th></tr>";
             for (let i = 0; i < timestamps.length; i++) {
                 const row = table.insertRow();
                 const cell1 = row.insertCell(0);
                 const cell2 = row.insertCell(1);
-                const cell3 = row.insertCell(2);
                 cell1.textContent = timestamps[i];
                 cell2.textContent = udpUlTxValues[i] || '-';
-                cell3.textContent = udpDlTxValues[i] || '-';
             }
         }
 
-        // Function to apply UL and DL filters separately
-        function applyFilters(filterType) {
+        function updateTableDL(timestamps, udpDlTxValues) {
+            const table = document.getElementById("dataTableDL");
+            table.innerHTML = "<tr><th>Time</th><th>DL Throughput (Mbps)</th></tr>";
+            for (let i = 0; i < timestamps.length; i++) {
+                const row = table.insertRow();
+                const cell1 = row.insertCell(0);
+                const cell2 = row.insertCell(1);
+                cell1.textContent = timestamps[i];
+                cell2.textContent = udpDlTxValues[i] || '-';
+            }
+        }
+
+        function applyULFilter() {
             const ulFilter = parseFloat(document.getElementById("ulFilter").value) || 0;
-            const dlFilter = parseFloat(document.getElementById("dlFilter").value) || 0;
-
-            const filteredTimestamps = [];
+            const filteredTimestampsUL = [];
             const filteredUdpUlTxValues = [];
+            for (let i = 0; i < allTimestampsUL.length; i++) {
+                if (allUdpUlTxValues[i] > ulFilter) {
+                    filteredTimestampsUL.push(allTimestampsUL[i]);
+                    filteredUdpUlTxValues.push(allUdpUlTxValues[i]);
+                }
+            }
+            updateTableUL(filteredTimestampsUL, filteredUdpUlTxValues);
+        }
+
+        function applyDLFilter() {
+            const dlFilter = parseFloat(document.getElementById("dlFilter").value) || 0;
+            const filteredTimestampsDL = [];
             const filteredUdpDlTxValues = [];
-
-            if (filterType === 'ul') {
-                // Apply UL filter
-                for (let i = 0; i < allTimestamps.length; i++) {
-                    if (allUdpUlTxValues[i] > ulFilter) {
-                        filteredTimestamps.push(allTimestamps[i]);
-                        filteredUdpUlTxValues.push(allUdpUlTxValues[i]);
-                        filteredUdpDlTxValues.push(allUdpDlTxValues[i]);
-                    }
-                }
-            } else if (filterType === 'dl') {
-                // Apply DL filter
-                for (let i = 0; i < allTimestamps.length; i++) {
-                    if (allUdpDlTxValues[i] > dlFilter) {
-                        filteredTimestamps.push(allTimestamps[i]);
-                        filteredUdpUlTxValues.push(allUdpUlTxValues[i]);
-                        filteredUdpDlTxValues.push(allUdpDlTxValues[i]);
-                    }
+            for (let i = 0; i < allTimestampsDL.length; i++) {
+                if (allUdpDlTxValues[i] > dlFilter) {
+                    filteredTimestampsDL.push(allTimestampsDL[i]);
+                    filteredUdpDlTxValues.push(allUdpDlTxValues[i]);
                 }
             }
-
-            // Update the table with filtered data
-            updateTable(filteredTimestamps, filteredUdpUlTxValues, filteredUdpDlTxValues);
-            
-            // Export filtered data to Excel
-            exportToExcel(filteredTimestamps, filteredUdpUlTxValues, filteredUdpDlTxValues, ulFilter, dlFilter, filterType);
+            updateTableDL(filteredTimestampsDL, filteredUdpDlTxValues);
         }
 
-        // Function to export filtered data to Excel
-        function exportToExcel(timestamps, udpUlTxValues, udpDlTxValues, ulFilter, dlFilter, filterType) {
-            // Prepare data for UL export
-            const ulData = [["Time", "UL Throughput (Mbps)"]];
-            for (let i = 0; i < timestamps.length; i++) {
-                if (udpUlTxValues[i] > ulFilter) {
-                    ulData.push([timestamps[i], udpUlTxValues[i]]);
-                }
-            }
-
-            // Prepare data for DL export
-            const dlData = [["Time", "DL Throughput (Mbps)"]];
-            for (let i = 0; i < timestamps.length; i++) {
-                if (udpDlTxValues[i] > dlFilter) {
-                    dlData.push([timestamps[i], udpDlTxValues[i]]);
-                }
-            }
-
-            // Create worksheets
-            const ulWs = XLSX.utils.aoa_to_sheet(ulData);
-            const dlWs = XLSX.utils.aoa_to_sheet(dlData);
-
-            // Create a workbook and append sheets
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ulWs, "UL Throughput");
-            XLSX.utils.book_append_sheet(wb, dlWs, "DL Throughput");
-
-            // Generate Excel file with dynamic filename
-            let fileName = originalFileName;
-            if (filterType === 'ul') {
-                fileName += `_UL_${ulFilter}.xlsx`;
-            } else if (filterType === 'dl') {
-                fileName += `_DL_${dlFilter}.xlsx`;
-            }
-
-            XLSX.writeFile(wb, fileName);
-        }
-
-        // Function to trigger the file input click event
         function triggerFileInput() {
             document.getElementById('fileInput').click();
         }
@@ -245,30 +245,36 @@
 
     <div>
         <br>
-        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" file:</label><br>
+        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" files:</label><br>
         <!-- Hidden file input -->
-        <input type="file" id="fileInput" accept=".txt" onchange="handleFileUploadAndParse(event)">
+        <input type="file" id="fileInput" accept=".txt" multiple onchange="handleFileUploadAndParse(event)">
         
         <!-- Custom button to trigger file selection -->
-        <button onclick="triggerFileInput()">Select File & Parse</button>
+        <button onclick="triggerFileInput()">Select Files & Parse</button>
         
         <br>
-        <span id="fileNameDisplay">No file selected</span> <!-- Display filename here -->
+        <span id="fileNameDisplay">No files selected</span> <!-- Display filename here -->
     </div>
 
-    <div>
-        <label for="ulFilter">UL Throughput Threshold (Mbps): </label>
-        <input type="number" id="ulFilter" placeholder="Enter UL filter value" min="0">
-        <button onclick="applyFilters('ul')">Apply UL Filter</button>
-    </div>
-    <div>
-        <label for="dlFilter">DL Throughput Threshold (Mbps): </label>
-        <input type="number" id="dlFilter" placeholder="Enter DL filter value" min="0">
-        <button onclick="applyFilters('dl')">Apply DL Filter</button>
+    <div class="filter-container">
+        <h4>UL Throughput Data Table:</h4>
+        <label for="ulFilter">Filter UL (Mbps): </label>
+        <input type="number" id="ulFilter" placeholder="Enter UL filter value">
+        <button onclick="applyULFilter()">Apply UL Filter</button>
     </div>
 
-    <h4>Output Data Table:</h4>
-    <table id="dataTable"></table>
+    <div class="table-container">
+        <div class="table-wrapper">
+            <table id="dataTableUL"></table>
+        </div>
+        <div class="table-wrapper">
+            <h4>DL Throughput Data Table:</h4>
+            <label for="dlFilter">Filter DL (Mbps): </label>
+            <input type="number" id="dlFilter" placeholder="Enter DL filter value">
+            <button onclick="applyDLFilter()">Apply DL Filter</button>
+            <table id="dataTableDL"></table>
+        </div>
+    </div>
 </body>
 
 </html>
