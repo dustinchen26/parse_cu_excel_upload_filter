@@ -1,3 +1,6 @@
+修改底下excel，按下Apply UL Filter或Apply DL Filter以後，
+除了更新網頁表格，也下載table到新的excel檔案，輸出檔名為原先檔名加上下標filter數值，列出完整修後html
+
 <!-- 
   Copyright © [2023] [Dustin_Chen]. All rights reserved.
   Author: Dustin_Chen 
@@ -93,9 +96,7 @@
         let allUdpUlTxValues = [];
         let allTimestampsDL = [];
         let allUdpDlTxValues = [];
-        let originalFileNames = [];
 
-    // Process file upload and parse
         function handleFileUploadAndParse(event) {
             const files = event.target.files;
             if (files.length === 0) {
@@ -108,7 +109,6 @@
             allUdpUlTxValues = [];
             allTimestampsDL = [];
             allUdpDlTxValues = [];
-            originalFileNames = [];
 
             const fileArray = Array.from(files);
 
@@ -127,8 +127,7 @@
             // Read and parse each file
             Promise.all(fileArray.map(file => readFile(file)))
                 .then(fileContents => {
-                    fileContents.forEach((content, index) => {
-                        originalFileNames.push(fileArray[index].name); // Store original file names
+                    fileContents.forEach(content => {
                         parseContentAndUpdate(content);
                     });
 
@@ -186,7 +185,6 @@
             allUdpDlTxValues = allUdpDlTxValues.concat(udpDlTxValues);
         }
 
-    // Update the UL data table
         function updateTableUL(timestamps, udpUlTxValues) {
             const table = document.getElementById("dataTableUL");
             table.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th></tr>";
@@ -199,7 +197,6 @@
             }
         }
 
-    // Update the DL data table
         function updateTableDL(timestamps, udpDlTxValues) {
             const table = document.getElementById("dataTableDL");
             table.innerHTML = "<tr><th>Time</th><th>DL Throughput (Mbps)</th></tr>";
@@ -212,7 +209,6 @@
             }
         }
 
-    // Apply UL filter
         function applyULFilter() {
             const ulFilter = parseFloat(document.getElementById("ulFilter").value) || 0;
             const filteredTimestampsUL = [];
@@ -224,10 +220,8 @@
                 }
             }
             updateTableUL(filteredTimestampsUL, filteredUdpUlTxValues);
-        downloadExcel("UL", ulFilter, filteredTimestampsUL, filteredUdpUlTxValues);
         }
 
-    // Apply DL filter
         function applyDLFilter() {
             const dlFilter = parseFloat(document.getElementById("dlFilter").value) || 0;
             const filteredTimestampsDL = [];
@@ -239,24 +233,7 @@
                 }
             }
             updateTableDL(filteredTimestampsDL, filteredUdpDlTxValues);
-        downloadExcel("DL", dlFilter, filteredTimestampsDL, filteredUdpDlTxValues);
         }
-
-    // Download the Excel file with filtered data
-    function downloadExcel(filterType, filterValue, filteredTimestamps, filteredValues) {
-    const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([
-            ["Time", filterType === "UL" ? "UL Throughput (Mbps)" : "DL Throughput (Mbps)"],
-            ...filteredTimestamps.map((time, idx) => [time, filteredValues[idx]]),
-    ]);
-    XLSX.utils.book_append_sheet(wb, ws, "Filtered Data");
-
-    // Filename with filter type and value
-    const filterLabel = filterType === "UL" ? "UL_filter" : "DL_filter";
-    const fileName = `${originalFileNames[0].replace('.txt', '')}_${filterLabel}_${filterValue}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-}
-
 
         function triggerFileInput() {
             document.getElementById('fileInput').click();
@@ -304,3 +281,4 @@
 </body>
 
 </html>
+
