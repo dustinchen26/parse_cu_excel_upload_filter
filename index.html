@@ -4,6 +4,12 @@
   Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
 -->
 
+<!-- 
+  Copyright © [2023] [Dustin_Chen]. All rights reserved.
+  Author: Dustin_Chen
+  Email:  Dustin_Chen@compal.com or chuhpsdustin@gmail.com
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -13,7 +19,7 @@
     <title>parse_cu_excel</title>
     <style>
         body {
-            line-height: 1.2;
+            line-height: 1;
             font-size: 14px;
             font-family: Roboto, sans-serif;
             white-space: nowrap;
@@ -39,7 +45,6 @@
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
-            flex: 1;
         }
 
         table, th, td {
@@ -62,29 +67,75 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: 14px;
+            font-size: 12px;
             color: #333;
             padding-left: 10px;
         }
 
         #fileInput {
             margin-top: 10px;
-            display: none;
+            display: none; /* Hide the file input */
+        }
+
+        /* Button style */
+        .btn-choose-file {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-choose-file:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-apply-filter {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 10px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-apply-filter:hover {
+            background-color: #218838;
         }
 
         /* Container for side-by-side tables */
         .table-container {
             display: flex;
             justify-content: space-between;
+            flex-wrap: wrap; /* Allow wrapping when space is tight, but keep elements side by side */
+            gap: 20px; /* Add space between the two tables */
         }
 
         .table-wrapper {
-            width: 48%; /* Each table takes up almost half of the container */
+            width: 48%; /* Make each table take up 48% of the container width */
         }
 
         /* For UL and DL table filters */
         .filter-container {
             margin-top: 10px;
+        }
+
+        /* Make sure the tables are responsive */
+        @media (max-width: 768px) {
+            .table-container {
+                flex-direction: column;
+                gap: 10px; /* Reduce gap when stacked vertically on small screens */
+            }
+
+            .table-wrapper {
+                width: 100%; /* Make the tables full width on smaller screens */
+            }
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.3/xlsx.full.min.js"></script>
@@ -95,7 +146,7 @@
         let allUdpDlTxValues = [];
         let originalFileNames = [];
 
-    // Process file upload and parse
+        // Process file upload and parse
         function handleFileUploadAndParse(event) {
             const files = event.target.files;
             if (files.length === 0) {
@@ -186,7 +237,7 @@
             allUdpDlTxValues = allUdpDlTxValues.concat(udpDlTxValues);
         }
 
-    // Update the UL data table
+        // Update the UL data table
         function updateTableUL(timestamps, udpUlTxValues) {
             const table = document.getElementById("dataTableUL");
             table.innerHTML = "<tr><th>Time</th><th>UL Throughput (Mbps)</th></tr>";
@@ -199,7 +250,7 @@
             }
         }
 
-    // Update the DL data table
+        // Update the DL data table
         function updateTableDL(timestamps, udpDlTxValues) {
             const table = document.getElementById("dataTableDL");
             table.innerHTML = "<tr><th>Time</th><th>DL Throughput (Mbps)</th></tr>";
@@ -212,7 +263,7 @@
             }
         }
 
-    // Apply UL filter
+        // Apply UL filter
         function applyULFilter() {
             const ulFilter = parseFloat(document.getElementById("ulFilter").value) || 0;
             const filteredTimestampsUL = [];
@@ -224,10 +275,10 @@
                 }
             }
             updateTableUL(filteredTimestampsUL, filteredUdpUlTxValues);
-        downloadExcel("UL", ulFilter, filteredTimestampsUL, filteredUdpUlTxValues);
+            downloadExcel("UL", ulFilter, filteredTimestampsUL, filteredUdpUlTxValues);
         }
 
-    // Apply DL filter
+        // Apply DL filter
         function applyDLFilter() {
             const dlFilter = parseFloat(document.getElementById("dlFilter").value) || 0;
             const filteredTimestampsDL = [];
@@ -239,66 +290,62 @@
                 }
             }
             updateTableDL(filteredTimestampsDL, filteredUdpDlTxValues);
-        downloadExcel("DL", dlFilter, filteredTimestampsDL, filteredUdpDlTxValues);
+            downloadExcel("DL", dlFilter, filteredTimestampsDL, filteredUdpDlTxValues);
         }
 
-    // Download the Excel file with filtered data
-    function downloadExcel(filterType, filterValue, filteredTimestamps, filteredValues) {
-    const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([
-            ["Time", filterType === "UL" ? "UL Throughput (Mbps)" : "DL Throughput (Mbps)"],
-            ...filteredTimestamps.map((time, idx) => [time, filteredValues[idx]]),
-    ]);
-    XLSX.utils.book_append_sheet(wb, ws, "Filtered Data");
-
-    // Filename with filter type and value
-    const filterLabel = filterType === "UL" ? "UL_filter" : "DL_filter";
-    const fileName = `${originalFileNames[0].replace('.txt', '')}_${filterLabel}_${filterValue}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-}
-
-
-        function triggerFileInput() {
-            document.getElementById('fileInput').click();
+        // Trigger Excel download
+        function downloadExcel(type, filterValue, timestamps, udpTxValues) {
+            const ws = XLSX.utils.aoa_to_sheet([
+                ['Time', type + ' Throughput (Mbps)'],
+                ...timestamps.map((timestamp, i) => [timestamp, udpTxValues[i] || '-'])
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, type + ' Data');
+            const fileName = `Throughput_${type}_${filterValue || 'All'}.xlsx`;
+            XLSX.writeFile(wb, fileName);
         }
     </script>
 </head>
 
 <body>
-    <h2>parse_cu_excel</h2>
-
-    <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com">chuhpsdustin@gmail.com</a></p>
-
-    <div>
-        <br>
-        <label for="fileInput">● Please upload the "cu_stats_XXX.txt" files:</label><br>
-        <!-- Hidden file input -->
-        <input type="file" id="fileInput" accept=".txt" multiple onchange="handleFileUploadAndParse(event)">
-        
-        <!-- Custom button to trigger file selection -->
-        <button onclick="triggerFileInput()">Select Files & Parse</button>
-        
-        <br>
-        <span id="fileNameDisplay">No files selected</span> <!-- Display filename here -->
-    </div>
-
-    <div class="filter-container">
-        <h4>UL Throughput Data Table:</h4>
-        <label for="ulFilter">Filter UL (Mbps): </label>
-        <input type="number" id="ulFilter" placeholder="Enter UL filter value">
-        <button onclick="applyULFilter()">Apply UL Filter</button>
-    </div>
+    <h2>Parse CU Excel Data</h2>
+    <p style="margin: 0;">Author: Dustin_Chen, email: <a href="mailto:Dustin_Chen@compal.com"
+            style="line-height: 1;">Dustin_Chen@compal.com</a> or <a href="mailto:chuhpsdustin@gmail.com"
+            style="line-height: 1;">chuhpsdustin@gmail.com</a></p>
+    
+    <input type="file" id="fileInput" multiple onchange="handleFileUploadAndParse(event)">
+    <button class="btn-choose-file" onclick="document.getElementById('fileInput').click()">Upload Files</button>
+    <p id="fileNameDisplay">No files selected</p>
 
     <div class="table-container">
         <div class="table-wrapper">
-            <table id="dataTableUL"></table>
+            <h3>UL Throughput</h3>
+            <div class="filter-container">
+                <label for="ulFilter">Filter UL Throughput (Mbps):</label>
+                <input type="number" id="ulFilter" placeholder="Enter value">
+                <button class="btn-apply-filter" onclick="applyULFilter()">Apply Filter</button>
+            </div>
+            <table id="dataTableUL">
+                <tr>
+                    <th>Time</th>
+                    <th>UL Throughput (Mbps)</th>
+                </tr>
+            </table>
         </div>
+
         <div class="table-wrapper">
-            <h4>DL Throughput Data Table:</h4>
-            <label for="dlFilter">Filter DL (Mbps): </label>
-            <input type="number" id="dlFilter" placeholder="Enter DL filter value">
-            <button onclick="applyDLFilter()">Apply DL Filter</button>
-            <table id="dataTableDL"></table>
+            <h3>DL Throughput</h3>
+            <div class="filter-container">
+                <label for="dlFilter">Filter DL Throughput (Mbps):</label>
+                <input type="number" id="dlFilter" placeholder="Enter value">
+                <button class="btn-apply-filter" onclick="applyDLFilter()">Apply Filter</button>
+            </div>
+            <table id="dataTableDL">
+                <tr>
+                    <th>Time</th>
+                    <th>DL Throughput (Mbps)</th>
+                </tr>
+            </table>
         </div>
     </div>
 </body>
